@@ -41,12 +41,12 @@ const generators = {
 const config = {
   world_height: 800,
   world_width: 800,
-  num_nodes: 6,
+  num_nodes: 400,
   node_generator: 'square',
-  exchanges_per_node: 2,
-  disipation: 0,
+  exchanges_per_node: 4,
+  disipation: 0.01,
   arrow_size: 4,
-  seed: 1552508139354
+  seed: Date.now()
 }
 
 global.config = config
@@ -180,6 +180,16 @@ const init = () => {
     if (!nodes[b].b.includes(i)) nodes[b].b.push(i)
   })
 
+  // flip negative vlow exchanges, to simplify code
+  exchanges.forEach(e => {
+    if (e.f < 0) {
+      const a = e.a
+      e.a = e.b
+      e.b = a
+      e.f *= -1
+    }
+  })
+
   let total = 0
   exchanges.forEach(e => (total += Math.abs(e.f)))
   let normalise = 1 / (total / exchanges.length)
@@ -201,43 +211,53 @@ A ---> * -/
      v  v
     D   E
 
-a fraction of exchange A's flow is transferred to B, C, D & E each iteration
-the amount transferred to each target is weighted by their flow
+a fraction of exchange A's flow is transferred to B, C, D & E each iteration.
+the amount transferred to each target is weighted by their outgoing flow
 */
+const format = (e, ef, d) =>
+  `from ${e.a} -> ${e.b} to ${ef.a} -> ${ef.b}, transfer ${d}`
 const loop = ({random, nodes, exchanges}) => {
   // calculate deltas
   const delta = new Array(exchanges.length).fill(0)
   exchanges.forEach((e, i) => {
-    let d = Math.abs(e.f / 100)
+    let d = Math.abs(e.f / 5)
     let sum = 0
     const forward = []
-    if (e.f > 0) {
-      delta[e.i] -= d
-      nodes[e.b].a.forEach(n => {
-        const e = exchanges[n]
-        if (e.i === i) return
-        sum += e.f
-        forward.push(e)
-      })
-    } else {
-      delta[e.i] += d
-      nodes[e.a].b.forEach(n => {
-        const e = exchanges[n]
-        if (e.i === i) return
-        sum += e.f
-        forward.push(e)
-      })
-    }
+    delta[e.i] -= d
+    nodes[e.b].a.forEach(n => {
+      const ef = exchanges[n]
+      if (ef.i === e.i) return
+      const backward = ef.b === e.a || ef.b === e.b
+      if (!backward) sum += ef.f
+      forward.push(ef)
+    })
 
+    const allBackward = sum === 0
     forward.forEach(ef => {
-      if (ef.b === e.a || ef.b === e.b) d *= -1
-      delta[ef.i] += d * Math.abs(ef.f / sum)
+      const backward = ef.b === e.a || ef.b === e.b
+      const df = allBackward
+        ? -d / forward.length
+        : backward
+        ? 0
+        : d * Math.abs(ef.f / sum)
+      // console.log(format(e, ef, df))
+      delta[ef.i] += df
     })
   })
 
+  // console.log('---')
+
   // apply deltas
   Object.keys(delta).forEach(i => {
-    exchanges[i].f += delta[i]
+    const e = exchanges[i]
+    e.f += delta[i]
+    // flip negative flow exchanges, to simplify code
+    if (e.f < 0) {
+      const a = e.a
+      e.a = e.b
+      e.b = a
+      e.f *= -1
+    }
   })
 
   // normalisation

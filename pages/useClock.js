@@ -26,7 +26,7 @@ const useClock = (cb, intervalDuration, startImmediate = false) => {
     }
   }, [isRunning])
 
-  if (time >= 200) stop()
+  // if (time >= 200) stop()
 
   return {
     time,

@@ -1,29 +1,38 @@
 import React from 'react'
 
-const useClock = ({loop}) => {
+const useClock = (cb, intervalDuration, startImmediate = false) => {
   const [time, setTime] = React.useState(0)
-  const [stopped, setStopped] = React.useState(false)
-
-  const tick = () => {
-    setTime(t => t + 1)
-    loop(time)
-    if (!stopped) global.requestAnimationFrame(tick)
-  }
+  const [isRunning, setIsRunning] = React.useState(startImmediate)
 
   const start = () => {
-    if (!stopped) global.requestAnimationFrame(tick)
-    setStopped(false)
+    setIsRunning(true)
   }
 
   const stop = () => {
-    setStopped(true)
+    if (isRunning) {
+      setIsRunning(false)
+    }
+  }
+
+  const onInterval = () => {
+    setTime(t => t + 1)
+    cb()
   }
 
   React.useEffect(() => {
-    start()
-  }, [])
+    if (isRunning) {
+      const _intervalId = setInterval(onInterval, intervalDuration)
+      return () => clearInterval(_intervalId)
+    }
+  }, [isRunning])
 
-  return {time, start, stop}
+  if (time >= 200) stop()
+
+  return {
+    time,
+    start,
+    stop
+  }
 }
 
 export default useClock

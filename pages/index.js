@@ -4,20 +4,61 @@ import * as Quadtree from 'quadtree-lib'
 import useClock from './useClock'
 import './arrow'
 
-// node = {i, x, y}
-// exchange = {i, ni, nj, sz, backward: exchange, forward: [exchange]}
+// node = {i, x, y, a: [], b: []}
+// exchange = {i, a, b, f}
+// "f" is flow from a to b
+
+const generators = {
+  random: ({num_nodes, world_height, world_width, random}) => {
+    const nodes = []
+    for (let i = 0; i < num_nodes; i++) {
+      const x = Math.floor(random() * world_width)
+      const y = Math.floor(random() * world_height)
+      nodes.push({i, x, y})
+    }
+    return nodes
+  },
+  square: ({num_nodes, world_height, world_width, random}) => {
+    const nodes = []
+    for (let i = 0; i < num_nodes; i++) {
+      const sz = Math.floor(num_nodes ** 0.5)
+      const x = ((i % sz) / sz) * (world_width - 20) + random() + 10
+      const y = (Math.floor(i / sz) / sz) * (world_height - 20) + random() + 10
+      nodes.push({i, x, y})
+    }
+    return nodes
+  },
+  basic: () => {
+    return [
+      {i: 0, x: 200, y: 200},
+      {i: 1, x: 400, y: 200},
+      {i: 2, x: 200, y: 400},
+      {i: 3, x: 400, y: 400}
+    ]
+  }
+}
 
 const config = {
   world_height: 800,
   world_width: 800,
-  num_nodes: 900,
-  exchanges_per_node: 4,
-  exchanges_variation: 0.5,
-  seed: Date.now()
+  num_nodes: 6,
+  node_generator: 'square',
+  exchanges_per_node: 2,
+  disipation: 0,
+  arrow_size: 4,
+  seed: 1552508139354
+}
+
+global.config = config
+
+const shrink = v => {
+  const sgn = v > 0 ? 1 : -1
+  v = Math.log10(Math.abs(v) + 1)
+  return v * sgn
 }
 
 const Canvas = ({world}) => {
-  const {nodes = [], exchanges = [], exchangePairs = []} = world
+  const {nodes = [], exchanges = []} = world
   const ref = React.useRef()
 
   React.useLayoutEffect(() => {
@@ -26,15 +67,19 @@ const Canvas = ({world}) => {
     ctx.fillRect(0, 0, config.world_width, config.world_height)
 
     ctx.fillStyle = 'black'
-    exchangePairs.forEach(([i, j]) => {
-      i = exchanges[i]
-      j = exchanges[j]
-      const {x: xi, y: yi} = nodes[i.ni]
-      const {x: xj, y: yj} = nodes[i.nj]
+
+    const max = shrink(
+      exchanges.reduce((pv, e) => Math.max(pv, Math.abs(e.f)), 0)
+    )
+
+    exchanges.forEach(({a, b, f}) => {
+      const {x: xa, y: ya} = nodes[a]
+      const {x: xb, y: yb} = nodes[b]
+      f = (shrink(f) / max) * config.arrow_size
+
+      const shape = f > 0 ? [1, 0, -f * 2, f] : [-f * 2, -f, -1, 0]
       ctx.beginPath()
-      const w0 = j ? Math.max(j.sz, 0) : 0
-      const w1 = Math.max(i.sz, 0)
-      ctx.arrow(xi, yi, xj, yj, [2, w0, -2, w1])
+      ctx.arrow(xa, ya, xb, yb, shape)
       ctx.fill()
     })
   })
@@ -42,22 +87,6 @@ const Canvas = ({world}) => {
   return (
     <canvas height={config.world_height} width={config.world_width} ref={ref} />
   )
-}
-
-const findPairs = exchanges => {
-  const map = {}
-  const pairs = []
-  exchanges.forEach(({ni, nj}, i) => {
-    const key = ni > nj ? `${ni}-${nj}` : `${nj}-${ni}`
-    if (typeof map[key] === 'number') {
-      pairs.push([map[key], i])
-      delete map[key]
-    } else {
-      map[key] = i
-    }
-  })
-  Object.values(map).forEach(i => pairs.push([i, -1]))
-  return pairs
 }
 
 const collides = (box, {x, y}) => {
@@ -97,50 +126,24 @@ const findClosestN = (origin, quadtree, n) => {
   }
 }
 
-const randomNodes = ({num_nodes, world_height, world_width, random}) => {
-  const nodes = []
-  for (let i = 0; i < num_nodes; i++) {
-    const x = Math.floor(random() * world_width)
-    const y = Math.floor(random() * world_height)
-    nodes.push({i, x, y})
-  }
-  return nodes
-}
-
-const squareNodes = ({num_nodes, world_height, world_width, random}) => {
-  const nodes = []
-  for (let i = 0; i < num_nodes; i++) {
-    const sz = Math.floor(num_nodes ** 0.5)
-    const x = ((i % sz) / sz) * (world_width - 20) + random() + 10
-    const y = (Math.floor(i / sz) / sz) * (world_height - 20) + random() + 10
-    nodes.push({i, x, y})
-  }
-  return nodes
-}
-
-const basicNode = () => {
-  return [
-    {i: 0, x: 200, y: 200},
-    {i: 1, x: 400, y: 200},
-    {i: 2, x: 200, y: 400},
-    {i: 3, x: 400, y: 400}
-  ]
-}
-
 const init = () => {
   const {
     world_height,
     world_width,
     num_nodes,
     exchanges_per_node,
-    exchanges_variation,
     seed
   } = config
 
   const generator = new MersenneTwister(seed)
   const random = generator.random.bind(generator)
 
-  const nodes = squareNodes({num_nodes, world_height, world_width, random})
+  const nodeGen = generators[config.node_generator]
+  const nodes = nodeGen({num_nodes, world_height, world_width, random})
+  nodes.forEach(n => {
+    n.a = []
+    n.b = []
+  })
 
   var quadtree = new Quadtree({
     width: world_width,
@@ -152,45 +155,40 @@ const init = () => {
   nodes.forEach((node, i) => {
     const closest = findClosestN(node, quadtree, exchanges_per_node)
     closest.forEach(neighbour => {
-      const sz = 1 - exchanges_variation + random() * exchanges_variation * 2
-      exchanges.push({i: exchanges.length, ni: node.i, nj: neighbour.i, sz})
+      const i = exchanges.length
+      const a = node.i
+      const b = neighbour.i
+      // skip if an exchange already exists along the same path
+      if (
+        nodes[a].a.some(i => exchanges[i].a === b && exchanges[i].b === a) ||
+        nodes[a].b.some(i => exchanges[i].a === b && exchanges[i].b === a) ||
+        nodes[b].a.some(i => exchanges[i].a === b && exchanges[i].b === a) ||
+        nodes[b].b.some(i => exchanges[i].a === b && exchanges[i].b === a)
+      ) {
+        return
+      }
+      const f = random() - 0.5
+      exchanges.push({i, a, b, f})
+      node.a.push(i)
+      neighbour.b.push(i)
     })
   })
-
-  // because of geometry, it may be impossible for each node to have the same
-  // # of bidirectional exchanges. for randomly positioned nodes, nodes will
-  // have a mean of ~50% more nodes than specified in the config with our
-  // algorithm
-  const exchangePairs = findPairs(exchanges)
-  exchangePairs.forEach(([i, j], idx) => {
-    i = exchanges[i]
-    j = exchanges[j]
-    if (!j) {
-      const sz = 1 - exchanges_variation + random() * exchanges_variation * 2
-      j = {i: exchanges.length, ni: i.nj, nj: i.ni, sz}
-      exchangePairs[idx][1] = exchanges.length
-      exchanges.push(j)
-    }
+  exchanges.forEach(({i, a, b}) => {
+    if (!nodes[a].a.includes(i)) nodes[a].a.push(i)
+    if (!nodes[a].b.includes(i)) nodes[a].b.push(i)
+    if (!nodes[b].a.includes(i)) nodes[b].a.push(i)
+    if (!nodes[b].b.includes(i)) nodes[b].b.push(i)
   })
 
-  const iHashmap = {}
-  exchanges.forEach(e => {
-    if (!iHashmap[e.ni]) iHashmap[e.ni] = []
-    iHashmap[e.ni].push(e)
-  })
-  exchanges.forEach(e => {
-    e.forward = []
-    iHashmap[e.nj].forEach(e2 => {
-      if (e2.nj === e.ni) e.backward = e2
-      else e.forward.push(e2)
-    })
-  })
+  let total = 0
+  exchanges.forEach(e => (total += Math.abs(e.f)))
+  let normalise = 1 / (total / exchanges.length)
+  exchanges.forEach(e => (e.f *= normalise))
 
   return {
     random,
     nodes,
-    exchanges,
-    exchangePairs // for drawing
+    exchanges
   }
 }
 
@@ -203,51 +201,69 @@ A ---> * -/
      v  v
     D   E
 
-A' <---*
-
-exchange A strengthens B, C, D & E; while weakening A'
-repeated each iteration for each exchange
+a fraction of exchange A's flow is transferred to B, C, D & E each iteration
+the amount transferred to each target is weighted by their flow
 */
-const loop = ({random, nodes, exchanges, exchangePairs}) => {
-  const delta = {}
-  exchanges.forEach(e => {
-    const forward = ((e.sz - e.backward.sz) * e.backward.sz) / 100
-    if (forward > 0) {
-      if (!delta[e.backward.i]) delta[e.backward.i] = 0
-      delta[e.backward.i] -= forward
-      if (!delta[e.i]) delta[e.i] = 0
-
-      const iForward = forward / e.forward.length
-      const forwardAvg =
-        e.forward.map(e => e.sz).reduce((pv, v) => pv + v, 0) / e.forward.length
-      e.forward.forEach(e => {
-        if (!delta[e.i]) delta[e.i] = 0
-        delta[e.i] += iForward * (e.sz / forwardAvg)
+const loop = ({random, nodes, exchanges}) => {
+  // calculate deltas
+  const delta = new Array(exchanges.length).fill(0)
+  exchanges.forEach((e, i) => {
+    let d = Math.abs(e.f / 100)
+    let sum = 0
+    const forward = []
+    if (e.f > 0) {
+      delta[e.i] -= d
+      nodes[e.b].a.forEach(n => {
+        const e = exchanges[n]
+        if (e.i === i) return
+        sum += e.f
+        forward.push(e)
+      })
+    } else {
+      delta[e.i] += d
+      nodes[e.a].b.forEach(n => {
+        const e = exchanges[n]
+        if (e.i === i) return
+        sum += e.f
+        forward.push(e)
       })
     }
+
+    forward.forEach(ef => {
+      if (ef.b === e.a || ef.b === e.b) d *= -1
+      delta[ef.i] += d * Math.abs(ef.f / sum)
+    })
   })
 
+  // apply deltas
   Object.keys(delta).forEach(i => {
-    exchanges[i].sz += delta[i]
+    exchanges[i].f += delta[i]
   })
 
-  return {
-    random,
-    nodes,
-    exchanges,
-    exchangePairs
-  }
+  // normalisation
+  let total = 0
+  exchanges.forEach(e => (total += Math.abs(e.f)))
+  let normalise = 1 / (total / exchanges.length)
+  exchanges.forEach(e => (e.f *= normalise))
+
+  // disipation
+  exchanges.forEach(e => {
+    const dis = config.disipation
+    const add = (total * dis) / exchanges.length
+    const sub = Math.abs(e.f * dis)
+    let d = add - sub
+    if (e.f < 0) d *= -1
+    e.f += d
+  })
+
+  return {random, nodes, exchanges}
 }
 
-let world = init()
-global.world = world
-
 const Home = () => {
-  useClock({
-    loop: () => {
-      world = loop(world)
-    }
-  })
+  const [world, setWorld] = React.useState(init())
+  const clock = useClock(() => setWorld(loop(world)), 16, true)
+  global.world = world
+  global.clock = clock
   return (
     <div>
       <h1>Ascendency</h1>

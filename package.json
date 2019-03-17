@@ -16,5 +16,8 @@
     "quadtree-lib": "^1.0.9",
     "react": "^16.8.4",
     "react-dom": "^16.8.4"
+  },
+  "devDependencies": {
+    "raw-loader": "^1.0.0"
   }
 }

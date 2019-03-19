@@ -20,12 +20,25 @@
       a.push(x < 0 ? len + x : x, -y)
     }
     a.push(0, 0)
+    this.beginPath()
     for (var i = 0; i < a.length; i += 2) {
       var x = a[i] * cos - a[i + 1] * sin + startX
       var y = a[i] * sin + a[i + 1] * cos + startY
       if (i === 0) this.moveTo(x, y)
       else this.lineTo(x, y)
     }
+    this.closePath()
+  }
+})(global.CanvasRenderingContext2D)
+;(function(target) {
+  if (!target || !target.prototype) return
+  target.prototype.diamond = function(x, y, width, height) {
+    this.beginPath()
+    this.moveTo(x, y - height / 2)
+    this.lineTo(x - width / 2, y)
+    this.lineTo(x, y + height / 2)
+    this.lineTo(x + width / 2, y)
+    this.closePath()
   }
 })(global.CanvasRenderingContext2D)
 
@@ -36,7 +49,8 @@ const log = v => {
 }
 
 const arrowSize = 8
-const arrowColor = 'rgba(90, 90, 90)'
+const arrowColor = value =>
+  `hsl(220, ${Math.abs(value * 60)}%, ${50 + value * 30}%)`
 const border = 10
 const scale = 100
 
@@ -52,11 +66,9 @@ const Canvas = ({world}) => {
     ctx.fillStyle = 'white'
     ctx.fillRect(0, 0, canvasWidth, canvasHeight)
 
-    ctx.fillStyle = arrowColor
-
     const max = log(flows.reduce((pv, f) => Math.max(pv, Math.abs(f.w)), 0))
 
-    flows.forEach(({a, b, w}) => {
+    flows.forEach(({a, b, w, v}) => {
       let {x: xa, y: ya} = nodes[a]
       let {x: xb, y: yb} = nodes[b]
       w = (log(w) / max) * arrowSize
@@ -66,8 +78,28 @@ const Canvas = ({world}) => {
       yb = yb * scale + border
 
       const shape = w > 0 ? [1, 0, -w * 2, w] : [-w * 2, -w, -1, 0]
-      ctx.beginPath()
+      ctx.fillStyle = arrowColor(v)
       ctx.arrow(xa, ya, xb, yb, shape)
+      ctx.fill()
+    })
+
+    ctx.fillStyle = 'blue'
+    inputs.forEach(i => {
+      let {x, y} = nodes[i]
+      x = x * scale + border
+      y = y * scale + border
+
+      ctx.diamond(x, y, arrowSize * 2, arrowSize * 2.2)
+      ctx.fill()
+    })
+
+    ctx.fillStyle = 'red'
+    outputs.forEach(i => {
+      let {x, y} = nodes[i]
+      x = x * scale + border
+      y = y * scale + border
+
+      ctx.diamond(x, y, arrowSize * 2, arrowSize * 2.2)
       ctx.fill()
     })
   })

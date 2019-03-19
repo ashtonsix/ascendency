@@ -1,13 +1,36 @@
 import MersenneTwister from 'mersenne-twister'
 
+const splitArray = (arr, match) => {
+  const next = []
+  let buffer = []
+  arr.forEach(value => {
+    if (value === match) {
+      if (buffer.length) next.push(buffer)
+      buffer = []
+    } else {
+      buffer.push(value)
+    }
+  })
+  if (buffer.length) next.push(buffer)
+  return next
+}
+
 const tokenise = program => {
   const commands = []
+  let blockBuffer = []
   let commandBuffer = []
+  blockBuffer.push(commandBuffer)
   let tokenBuffer = ''
+  let comment = false
   let string = false
+  let block = false
   for (const i in program) {
     const c = program[i]
-    if (/[^\s`]/.test(c) || (c === ' ' && string)) {
+
+    if (c === '#') comment = true
+    if (comment && c !== '\n') continue
+
+    if (/[^\s`#{}]/.test(c) || (c === ' ' && string)) {
       tokenBuffer += c
       continue
     }
@@ -16,18 +39,40 @@ const tokenise = program => {
       continue
     }
     if (c === ' ' && !string) {
-      commandBuffer.push(tokenBuffer)
-      tokenBuffer = ''
+      if (tokenBuffer) {
+        commandBuffer.push(tokenBuffer)
+        tokenBuffer = ''
+      }
+      continue
+    }
+    if (c === '{') {
+      block = true
+      continue
+    }
+    if (c === '}') {
+      block = false
       continue
     }
     if (c === '\n') {
+      comment = false
       string = false
-      commandBuffer.push(tokenBuffer)
-      tokenBuffer = ''
-      commands.push(commandBuffer)
-      commandBuffer = []
+      if (tokenBuffer) {
+        commandBuffer.push(tokenBuffer)
+        tokenBuffer = ''
+      }
+      if (commandBuffer.length && block) {
+        commandBuffer.push('BLOCK_NEWLINE')
+      }
+      if (commandBuffer.length && !block) {
+        commands.push(commandBuffer)
+        commandBuffer = []
+      }
       continue
     }
+  }
+
+  for (const i in commands) {
+    commands[i] = splitArray(commands[i], 'BLOCK_NEWLINE')
   }
 
   return commands
@@ -41,26 +86,66 @@ const createRandom = seed => {
 
 const intepret = commands => {
   let random = createRandom(Date.now()) // usage: eval(`random(0, -1)`)
-  const config = {}
+  const config = {predictionWindow: 1, activation: 'sigmoid', cost: 'cosine'}
   const flows = []
   const nodes = []
   const inputs = []
   const outputs = []
   const vectors = {}
   for (const i in commands) {
-    const [command, ...params] = commands[i]
+    const [[command, ...params], ...subCommands] = commands[i]
     switch (command) {
-      case 'WORLD': {
-        const [width, height, learningRate, learningLeakage] = params
-        config.width = parseFloat(width, 10)
-        config.height = parseFloat(height, 10)
-        config.learningRate = learningRate
-        config.learningLeakage = learningLeakage
+      case 'CONFIG': {
+        for (const i in subCommands) {
+          const [command, ...params] = subCommands[i]
+          switch (command) {
+            case 'WIDTH': {
+              const [width] = params
+              config.width = parseFloat(width, 10)
+              break
+            }
+            case 'HEIGHT': {
+              const [height] = params
+              config.height = parseFloat(height, 10)
+              break
+            }
+            case 'LEARNING_RATE': {
+              const [learningRate] = params
+              config.learningRate = parseFloat(learningRate, 10)
+              break
+            }
+            case 'LEARNING_LEAK': {
+              const [learningLeak] = params
+              config.learningLeak = parseFloat(learningLeak, 10)
+              break
+            }
+            case 'PREDICTION_DELAY': {
+              const [predictionDelay] = params
+              config.predictionDelay = parseInt(predictionDelay, 10)
+              break
+            }
+            case 'PREDICTION_WINDOW': {
+              const [predictionWindow] = params
+              config.predictionWindow = parseInt(predictionWindow, 10)
+              break
+            }
+            case 'ACTIVATION': {
+              const [activation] = params
+              config.activation = activation
+              break
+            }
+            case 'COST': {
+              const [cost] = params
+              config.cost = cost
+              break
+            }
+          }
+        }
         break
       }
       case 'SEED': {
         let [seed] = params
-        seed = parseInt(seed, 10)
+        seed = eval(seed)
         random = createRandom(seed)
         break
       }
@@ -159,7 +244,7 @@ const intepret = commands => {
     nodes[f.b].flows.push(f.i)
   })
 
-  return {config, flows, nodes, inputs, outputs}
+  return {config, flows, nodes, inputs, outputs, history: []}
 }
 
 const generate = program => {

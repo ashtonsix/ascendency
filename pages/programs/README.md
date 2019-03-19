@@ -3,13 +3,30 @@
 ## Commands
 
 ```txt
-WORLD width height learningRate learningLeakage
+CONFIG {
+  WIDTH 5
+  HEIGHT 5
 
-configuration
+  LEARNING_RATE 0.5
+  LEARNING_LEAK 0.1
+
+  PREDICTION_DELAY 5
+  PREDICTION_WINDOW 1
+
+  ACTIVATION sigmoid
+}
+
+learningRate, is % of weight transferred to forward flows when value=1
+learningLeak, adds intentional ineffciency to learning. influences exploration vs exploitation
+
+predictionDelay, is # of ticks between sending an input & reading the output
+predictionWindow, is # of ticks an input signal is maintained for & spent monitoring output
+
+sigmoid is the only activation available; our sigmoid is zero-centered. max=1 is important. vanishing gradients aren't problematic because we don't use gradients
 ```
 
 ```txt
-SEED seed
+SEED `Date.now()`
 
 reset random number generator
 ```

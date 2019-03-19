@@ -1,14 +1,14 @@
 import React from 'react'
 import Canvas from './display'
 import init from './core/generate'
-import loop from './core/loop'
+import loop, {normalise} from './core/loop'
 import useClock from './useClock'
 
-import grid from './programs/002-grid.asc'
+import program from './programs/003-feedback.asc'
 
 const Simulation = ({children}) => {
-  const [world, setWorld] = React.useState(init(grid))
-  const clock = useClock(() => setWorld(loop(world)), 100, true)
+  const [world, setWorld] = React.useState(normalise(init(program)))
+  const clock = useClock(() => setWorld(loop(world)), 500, true)
   global.world = world
   global.clock = clock
   return children(world)

@@ -26,7 +26,7 @@ const useClock = (cb, intervalDuration, startImmediate = false) => {
     }
   }, [isRunning])
 
-  // if (time >= 5) stop()
+  if (time >= 27) stop()
 
   return {
     time,

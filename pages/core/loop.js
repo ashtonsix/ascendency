@@ -24,30 +24,8 @@ const amplify = {
   }
 }
 
-// adds non-linearity, and centers mean without changing anything with value of "0"
 const normalise = world => {
-  // const total = {
-  //   weight: 0,
-  //   loValue: 0,
-  //   hiValue: 0
-  // }
-
-  // world.flows.forEach(f => {
-  //   total.weight += Math.abs(f.w)
-  //   if (f.v < 0) total.loValue += -f.v
-  //   else total.hiValue += f.v
-  // })
-
-  // const shift = {
-  //   weight: 1 / (total.weight / world.flows.length),
-  //   loValue: total.hiValue >= total.loValue ? 1 : total.hiValue / total.loValue,
-  //   hiValue: total.hiValue <= total.loValue ? 1 : total.loValue / total.hiValue
-  // }
-
   world.flows.forEach(f => {
-    // f.w *= shift.weight
-    // f.v *= f.v < 0 ? shift.loValue : shift.hiValue
-
     if (f.w < 0) {
       const a = f.a
       f.a = f.b
@@ -55,11 +33,6 @@ const normalise = world => {
       f.w *= -1
     }
   })
-
-  // if (total.loValue || total.hiValue) {
-  //   const max = world.flows.reduce((pv, f) => Math.max(pv, Math.abs(f.v)), 0)
-  //   world.flows.forEach(f => (f.v /= max))
-  // }
 
   return world
 }
@@ -99,7 +72,7 @@ const loop = world => {
   const {config, flows, nodes, inputs, outputs, history} = world
   const {learningRate, learningLeak} = config
 
-  let valueInput = [1, -1]
+  let valueInput = [1]
   let valueDelta = new Array(flows.length).fill(0)
   let valueOutput = new Array(outputs.length).fill(0)
   let weightDelta = new Array(flows.length).fill(0)
@@ -141,7 +114,7 @@ const loop = world => {
       }
     })
   })
-  if (weightInputTaken) weightInputTransfer *= 1.1
+  if (weightInputTaken) weightInputTransfer *= 1 + valueOutput[0]
   flows.forEach(f => {
     const forward = filterFlow(f, nodes[f.b].flows.map(i => flows[i]))
     const backward = filterFlow(f, nodes[f.a].flows.map(i => flows[i]))
@@ -190,7 +163,7 @@ const loop = world => {
     }
     if (!input) {
       const config = {learningRate, learningLeak}
-      const mvBackward = backward.map((ff, i) => ff.v * mBackward[i])
+      const mvBackward = backward.map((ff, i) => Math.abs(ff.v) * mBackward[i])
       const gwDelta = getDelta(f.w, mvBackward, config, output)
       backward.forEach((ff, i) => {
         weightDelta[ff.i] += gwDelta[i]

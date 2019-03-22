@@ -25,6 +25,14 @@ cycle. when the model provides good answers the weight transfer is amplified
 
 ![feedback example]()
 
+<!-- the weight (arrow size) travels backward, and the value (color)
+travels along the weight network. when the value reaches the output it completes
+the cycle, enabling weight to flow from the input to the output via a "hidden"
+connection in the cycle
+
+when the model provides good answers (maps values correctly), the weight
+transfer is amplified and good cycles become stronger relative to bad cycles -->
+
 the values flow forward; the weights flow backward; the value reaches the
 output; the cycle is completed; and weights can flow from input to output; the
 weight transfer is amplified, which strengthens good cycles relative to bad

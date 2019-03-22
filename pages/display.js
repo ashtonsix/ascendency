@@ -48,7 +48,7 @@ const log = v => {
   return v * sgn
 }
 
-const sigmoid = value => 2 / (1 + Math.exp(-value * 10000000)) - 1
+const sigmoid = value => 2 / (1 + Math.exp(-value * 10000)) - 1
 
 const arrowSize = 8
 const arrowColor = value => {

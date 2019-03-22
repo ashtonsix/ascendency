@@ -4,7 +4,7 @@ import init from './core/generate'
 import loop, {normalise} from './core/loop'
 import useClock from './useClock'
 
-import program from './programs/002-grid.asc'
+import program from './programs/003-feedback.asc'
 
 const Simulation = ({children}) => {
   const [world, setWorld] = React.useState(normalise(init(program)))

@@ -15,12 +15,12 @@ const activation = {
 
 const amplify = {
   cosine: (a, b) => {
-    a = a.concat([1, -1])
+    a = a.concat([1, -1]) // measure magnitude in addition to angle
     b = b.concat([1, -1])
     const aMag = Math.sqrt(dot(a, a))
     const bMag = Math.sqrt(dot(b, b))
     const similarity = dot(a, b) / (aMag * bMag) || 0
-    return similarity + 2
+    return similarity / 2 + 1.5 // change domain from [-1, 1] to [1, 2]
   }
 }
 
@@ -86,7 +86,7 @@ const getDelta = (me, you, {learningRate, learningLeak}) => {
   d -= l
   l /= you.length
   return you.map(v => {
-    if (!sum) {
+    if (!sum && learningLeak) {
       return -(d + l) / you.length
     } else {
       if (v < 0) return -l
@@ -95,96 +95,111 @@ const getDelta = (me, you, {learningRate, learningLeak}) => {
   })
 }
 
-const debug = (f, ff, d) => {
-  const message = `from ${f.a} => ${f.b} to ${ff.a} => ${ff.b}, transfer ${d}`
-  // console.log(message)
-}
-
 const loop = world => {
   const {config, flows, nodes, inputs, outputs, history} = world
   const {learningRate, learningLeak} = config
 
+  let valueInput = [1, -1]
   let valueDelta = new Array(flows.length).fill(0)
   let valueOutput = new Array(outputs.length).fill(0)
   let weightDelta = new Array(flows.length).fill(0)
   let weightTakerSums = new Array(flows.length).fill(0)
-  let weightInput = new Array(outputs.length).fill(0)
-  let weightOutput = 0
+  let weightTakerCounts = new Array(flows.length).fill(0)
+  let weightInputTransfer = 0
+  let weightInputTaken = 0
   let totalValue = 0
 
+  valueInput.forEach(v => (totalValue += Math.abs(v)))
   flows.forEach(f => (totalValue += Math.abs(f.v)))
-  // give 25% weight backward, and get 25% weight taken from both directions,
-  // this array does accounting to make the "take" aspect easier to calculate
   flows.forEach(f => {
     const forward = filterFlow(f, nodes[f.b].flows.map(i => flows[i]))
     const backward = filterFlow(f, nodes[f.a].flows.map(i => flows[i]))
+    const input = inputs.includes(f.a)
+    const output = outputs.includes(f.b)
+    if (input || output) {
+      const v = totalValue > 0 ? Math.abs(f.v) : 1
+      const d = learningRate * f.w * v
+      weightInputTransfer += d * 2
+      if (output) weightInputTaken += d
+      if (input) weightDelta[f.i] -= d * 2
+    }
+    if (input) {
+      const input = inputs.indexOf(f.a)
+      valueDelta[f.i] += valueInput[input]
+    }
+    if (output) {
+      const output = outputs.indexOf(f.b)
+      valueOutput[output] += f.v
+      valueDelta[f.i] -= f.v
+    }
     ;[].concat(forward, backward).forEach(ff => {
-      const v = totalValue > 0 ? Math.abs(ff.v) : 1
-      weightTakerSums[f.i] += learningRate * ff.w * v
+      const outputAdjacent = outputs.includes(ff.b)
+      if (!outputAdjacent) {
+        const v = totalValue > 0 ? Math.abs(ff.v) : 1
+        weightTakerSums[f.i] += learningRate * ff.w * v
+        weightTakerSums[f.i] += 1
+      }
     })
   })
-  // console.log('---')
+  if (weightInputTaken) weightInputTransfer *= 1.1
   flows.forEach(f => {
     const forward = filterFlow(f, nodes[f.b].flows.map(i => flows[i]))
     const backward = filterFlow(f, nodes[f.a].flows.map(i => flows[i]))
     const mForward = mapFlow(f, forward)
     const mBackward = mapFlow(f, backward)
 
-    const labels = ['A', 'B', 'C', 'D']
-
-    const input = inputs.indexOf(f.a)
-    const output = outputs.indexOf(f.b)
-    // if (output !== -1) {
-    //   valueOutput[output] += f.v
-    //   weightOutput += f.w * lr
-    // } else {
-    const lr = learningRate * (totalValue > 0 ? Math.abs(f.v) : 1)
-    {
+    const input = inputs.includes(f.a)
+    const output = outputs.includes(f.b)
+    const tlr = learningRate * (totalValue > 0 ? Math.abs(f.v) : 1)
+    if (output) {
+      const d = (f.w * tlr * weightInputTransfer) / weightInputTaken
+      weightDelta[f.i] += d || 0
+    }
+    if (input && weightInputTaken === 0) {
+      const d = weightInputTransfer / inputs.length
+      weightDelta[f.i] += d
+    }
+    if (!output) {
       const config = {learningRate: 1, learningLeak: 0}
       const vDelta = getDelta(f.v, mForward, config)
       forward.forEach((ff, i) => {
-        const tw = f.w * lr
-        const itw = weightTakerSums[ff.i] - tw
-        const config = {learningRate: lr, learningLeak}
-        const twDelta = getDelta(ff.w, [tw, itw], config)[0]
-        // console.log(`${labels[f.i]} takes ${labels[ff.i]} ${twDelta}`)
-        weightDelta[ff.i] -= ff.w > 0 ? twDelta : -twDelta
+        const tw = f.w * tlr
+        const tws = weightTakerSums[ff.i]
+
+        // weird hack for learningLeak calculation
+        const twc = weightTakerCounts[ff.i]
+        const ll = twc === 1 ? learningLeak / 2 : learningLeak
+        const config = {learningRate: tlr, learningLeak: ll}
+        const faked = [tw, tws - tw]
+        if (twc >= 2) faked.length = weightTakerCounts[ff.i]
+
+        let twDelta = getDelta(ff.w, faked, config)[0]
+
+        // flip unused backward-facing flows
+        if (tws && ff.v === 0 && mForward[i] < 0) {
+          const epsilon = 1e-5
+          const d = Math.min(f.w * learningRate, ff.w * (tw / tws))
+          if (d > twDelta) twDelta = d + epsilon
+        }
+
+        weightDelta[ff.i] -= twDelta
         weightDelta[f.i] += twDelta
         valueDelta[ff.i] += vDelta[i]
       })
       valueDelta[f.i] -= f.v
     }
-    {
-      const config = {learningRate: lr, learningLeak}
-      const gwDelta = getDelta(f.w, mBackward, config)
+    if (!input) {
+      const config = {learningRate, learningLeak}
+      const mvBackward = backward.map((ff, i) => ff.v * mBackward[i])
+      const gwDelta = getDelta(f.w, mvBackward, config, output)
       backward.forEach((ff, i) => {
-        // console.log(`${labels[f.i]} gives ${labels[ff.i]} ${gwDelta[i]}`)
         weightDelta[ff.i] += gwDelta[i]
         weightDelta[f.i] -= Math.abs(gwDelta[i])
       })
     }
-    // }
   })
 
-  // let weightInput = new Array(inputs.length).fill(weightOutput / inputs.length)
-  // let valueInput = new Array(inputs.length).fill(0)
-
-  // inputs.forEach((j, i) => {
-  //   const f = {i: -1, a: -1, b: j, w: weightInput[i], v: valueInput[i]}
-  //   const forward = nodes[j].flows.map(i => flows[i])
-  //   const mForward = mapFlow(f, forward)
-  //   let config
-  //   config = {learningRate: 1, learningLeak: 0}
-  //   const vDelta = getDelta(f.v, mForward, config)
-  //   config = {learningRate: 1, learningLeak}
-  //   const wDelta = getDelta(f.w, mForward, config)
-  //   forward.forEach((ff, i) => {
-  //     valueDelta[ff.i] += vDelta[i]
-  //     weightDelta[ff.i] += wDelta[i]
-  //   })
-  // })
-
-  // TODO: boost inputs, use datasets/history/amplify
+  // TODO: datasets/history/amplify/window/normalise/modifiers/bias
 
   flows.forEach(f => {
     f.v += valueDelta[f.i]
@@ -192,7 +207,7 @@ const loop = world => {
     f.w += weightDelta[f.i]
   })
 
-  return normalise({config, flows, nodes, inputs, outputs, history}, true)
+  return normalise({config, flows, nodes, inputs, outputs, history})
 }
 
 export {normalise}

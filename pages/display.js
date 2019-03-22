@@ -48,10 +48,17 @@ const log = v => {
   return v * sgn
 }
 
+const sigmoid = value => 2 / (1 + Math.exp(-value * 10000000)) - 1
+
 const arrowSize = 8
-const arrowColor = value =>
-  `hsl(220, ${Math.abs(value * 60)}%, ${50 + value * 30}%)`
-const border = 10
+const arrowColor = value => {
+  value = sigmoid(value)
+  const h = value > 0 ? '220' : '10'
+  const s = Math.abs(value * 100)
+  const l = 50 + Math.abs(value * 30)
+  return `hsl(${h}, ${s}%, ${l}%)`
+}
+const border = 15
 const scale = 100
 
 const Canvas = ({world}) => {
@@ -104,7 +111,14 @@ const Canvas = ({world}) => {
     })
   })
 
-  return <canvas width={canvasWidth} height={canvasHeight} ref={ref} />
+  return (
+    <canvas
+      style={{border: '1px solid #ccc'}}
+      width={canvasWidth}
+      height={canvasHeight}
+      ref={ref}
+    />
+  )
 }
 
 export default Canvas

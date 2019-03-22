@@ -2,7 +2,20 @@
 
 cycleprop is a brand new algorithm for training deep neural networks. i've
 created a working prototype, think the idea has potential, and want to work on
-it for 2 years; but cannot fund the research myself
+it for 2 years
+
+![xor example]()
+
+cycleprop can solve non-linear tasks like XOR. this example uses fully-connected
+layers, 0-centered sigmoid activation & modified cosine similarity. the two
+input/output pairs at bottom perform a role similar to bias, and their values
+are ignored. this network could be migrated to PyTorch/Tensorflow without fuss
+
+![amorphous example]()
+
+cycleprop can optimise crazy-looking layers. it can "flip" connections: during
+training cycleprop may redirect recurrent flows, create memory cells, and
+syncronise inputs across time
 
 ![explainer diagram]()
 
@@ -19,26 +32,13 @@ cycles. this algorithm maximises "weight flowing through cycle / net change in
 weight over time". amplifying good answers ensures task-learning is the best way
 to succeed
 
-![xor example]()
-
-cycleprop can solve non-linear tasks like XOR. this example uses fully-connected
-layers, 0-centered sigmoid activation & modified cosine similarity. the two
-input/output pairs at bottom perform a role similar to bias, and their values
-are ignored. this network could be migrated to PyTorch/Tensorflow without fuss
-
-![square example]() ![fully-connected example]()
+![square example]() ![fully-connected reverse example]()
 
 cycleprop does not use gradients. networks are garunteed to become more stable
 over time (less exergy). you can use very high learning rates without
 introducing instability. given uniform value in the "square" example, any
 initial weight configuration will become a perfect cycle in logarithmic time. if
 you remove the input/ouput from a fully-connected layer it forms internal cycles
-
-![amorphous example]()
-
-cycleprop can optimise crazy-looking layers. it can "flip" connections: to learn
-tasks cycleprop may redirect recurrent flows, create memory cells, and
-syncronise inputs across time
 
 **pros**
 
@@ -47,7 +47,7 @@ examples. its reward mechanism is largely internal which may help the network
 consider wholly original objectives, and form the basis for emotion-inspired
 mechanisms like happiness / fear
 
-possibility. meta
+possibility. meta, l2 dropout, encoding, random forest in the middle
 
 nature.
 

@@ -9,7 +9,7 @@ const dot = (a, b) => {
 
 const activation = {
   sigmoid: v => {
-    return 2 / (1 + Math.exp(-v)) - 1
+    return 3 / (1 + Math.exp(-v)) - 1.5
   }
 }
 
@@ -118,7 +118,7 @@ const valueMode = world => {
   if (IORequested) {
     const amplify = (output, target) => {
       console.log(...output)
-      return 1 + output[1]
+      return 1 + (output[0] + output[1]) * 100
     }
     IOSent *= amplify(valueOutput, valueTarget)
   }
@@ -198,26 +198,6 @@ const sanitise = world => {
   return world
 }
 
-const normalise = world => {
-  const {flows} = world
-
-  let totalValue = 0
-  let countValue = 0
-
-  flows.forEach(f => {
-    totalValue += Math.abs(f.v)
-    if (f.v) countValue += 1
-  })
-
-  const averageValue = totalValue / countValue
-
-  flows.forEach(f => {
-    if (averageValue) f.v /= averageValue
-  })
-
-  return world
-}
-
 const loop = world => {
   const {config, flows} = world
   const getDelta = mode[config.mode]
@@ -225,7 +205,6 @@ const loop = world => {
 
   // TODO: datasets/history/amplify/window/sanitise/modifiers/bias
 
-  // normalise(world)
   flows.forEach(f => {
     f.v += valueDelta[f.i]
     f.v = activation[config.activation](f.v)

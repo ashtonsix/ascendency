@@ -84,9 +84,16 @@ const createRandom = seed => {
   return random
 }
 
+const defaultConfig = {
+  mode: 'value',
+  predictionDelay: NaN,
+  activation: 'sigmoid',
+  amplify: 'cosine'
+}
+
 const intepret = commands => {
   let random = createRandom(Date.now()) // usage: eval(`random(0, -1)`)
-  const config = {predictionWindow: 1, activation: 'sigmoid', cost: 'cosine'}
+  const config = {...defaultConfig}
   const flows = []
   const nodes = []
   const inputs = []
@@ -99,6 +106,11 @@ const intepret = commands => {
         for (const i in subCommands) {
           const [command, ...params] = subCommands[i]
           switch (command) {
+            case 'MODE': {
+              const [mode] = params
+              config.mode = mode
+              break
+            }
             case 'WIDTH': {
               const [width] = params
               config.width = parseFloat(width, 10)
@@ -124,19 +136,14 @@ const intepret = commands => {
               config.predictionDelay = parseInt(predictionDelay, 10)
               break
             }
-            case 'PREDICTION_WINDOW': {
-              const [predictionWindow] = params
-              config.predictionWindow = parseInt(predictionWindow, 10)
-              break
-            }
             case 'ACTIVATION': {
               const [activation] = params
               config.activation = activation
               break
             }
-            case 'COST': {
-              const [cost] = params
-              config.cost = cost
+            case 'AMPLIFY': {
+              const [amplify] = params
+              config.amplify = amplify
               break
             }
           }

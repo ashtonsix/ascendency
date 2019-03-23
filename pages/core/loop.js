@@ -1,22 +1,29 @@
 // node = {i, x, y, flows: []}
 // flow = {i, a, b, w, v}
 
+const activation = {
+  sigmoid: v => {
+    // sigmoid(-1  ) = -1
+    // sigmoid( 0  ) =  0
+    // sigmoid( 0.5) =  0.57
+    // sigmoid( 1  ) =  1
+    // sigmoid( 2  ) =  1.41
+    const norm = 1.543404638418
+    v *= norm
+    v = 2 / (1 + Math.exp(-v)) - 1
+    v *= norm
+    return v
+  }
+}
+
 const dot = (a, b) => {
   let sum = 0
   for (const i in a) sum += a[i] * b[i]
   return sum
 }
 
-const activation = {
-  sigmoid: v => {
-    return 3 / (1 + Math.exp(-v)) - 1.5
-  }
-}
-
 const amplify = {
   cosine: (a, b) => {
-    a = a.concat([1, -1]) // measure magnitude in addition to angle
-    b = b.concat([1, -1])
     const aMag = Math.sqrt(dot(a, a))
     const bMag = Math.sqrt(dot(b, b))
     const similarity = dot(a, b) / (aMag * bMag) || 0
@@ -61,33 +68,72 @@ const getDelta = (me, you, {learningRate, learningLeak, weightMode}) => {
 }
 
 const weightMode = world => {
-  const {config, flows, nodes} = world
+  const {config, flows, nodes, inputs, outputs} = world
   const {learningRate, learningLeak} = config
 
   let valueDelta = new Array(flows.length).fill(0)
   let weightDelta = new Array(flows.length).fill(0)
 
+  let IOSent = 0
+  let IORequested = 0
+
+  flows.forEach(f => {
+    const input = inputs.includes(f.a)
+    const output = outputs.includes(f.b)
+    if (input) {
+      const d = learningRate * f.w
+      IOSent += d
+      weightDelta[f.i] -= d
+    }
+    if (output) {
+      valueDelta[f.i] -= f.v
+
+      IORequested += Math.abs(f.w)
+    }
+  })
+
   flows.forEach(f => {
     const backward = filterFlow(f, nodes[f.a].flows.map(i => flows[i]))
     const wBackward = mapWeightDirection(f, backward)
+    const forward = filterFlow(f, nodes[f.b].flows.map(i => flows[i]))
+    const wForward = mapWeightDirection(f, forward)
 
-    const config = {learningRate, learningLeak, weightMode: true}
-    const wDelta = getDelta(f.w, wBackward, config)
-    backward.forEach((ff, i) => {
-      weightDelta[ff.i] += wDelta[i]
-      weightDelta[f.i] -= Math.abs(wDelta[i])
-    })
+    const input = inputs.includes(f.a)
+    const output = outputs.includes(f.b)
+
+    if (output) {
+      const d = (f.w * IOSent) / IORequested
+      weightDelta[f.i] += d || 0
+    }
+
+    if (!output && f.v) {
+      const config = {learningRate: 1, learningLeak: 0}
+      const vDelta = getDelta(f.v, wForward, config)
+      forward.forEach((ff, i) => {
+        vDelta[i] = Math[f.v < 0 ? 'min' : 'max'](vDelta[i], 0)
+        if (!inputs.includes(ff.a)) valueDelta[ff.i] += vDelta[i]
+      })
+      valueDelta[f.i] -= f.v
+    }
+
+    if (!input) {
+      const config = {learningRate, learningLeak, weightMode: true}
+      const wDelta = getDelta(f.w, wBackward, config)
+      backward.forEach((ff, i) => {
+        weightDelta[ff.i] += wDelta[i]
+        weightDelta[f.i] -= Math.abs(wDelta[i])
+      })
+    }
   })
 
   return {weightDelta, valueDelta}
 }
 
 const valueMode = world => {
-  const {config, flows, nodes, inputs, outputs, history} = world
+  const {config, value, flows, nodes, inputs, outputs} = world
   const {learningRate, learningLeak} = config
+  const {valueInput, valueTarget} = value
 
-  let valueInput = [1]
-  let valueTarget = [1, 0]
   let valueOutput = new Array(outputs.length).fill(0)
   let valueDelta = new Array(flows.length).fill(0)
 
@@ -116,11 +162,9 @@ const valueMode = world => {
   })
 
   if (IORequested) {
-    const amplify = (output, target) => {
-      console.log(...output)
-      return 1 + (output[0] + output[1]) * 100
-    }
-    IOSent *= amplify(valueOutput, valueTarget)
+    const amp = amplify[config.amplify](valueOutput, valueTarget)
+    console.log(amp, valueOutput)
+    IOSent *= amp
   }
 
   flows.forEach(f => {
@@ -131,6 +175,7 @@ const valueMode = world => {
 
     const input = inputs.includes(f.a)
     const output = outputs.includes(f.b)
+
     if (output && f.v) {
       const d = (Math.abs(f.v) * IOSent) / IORequested
       weightDelta[f.i] += d || 0
@@ -140,7 +185,7 @@ const valueMode = world => {
       const vDelta = getDelta(f.v, wForward, config)
       forward.forEach((ff, i) => {
         vDelta[i] = Math[f.v < 0 ? 'min' : 'max'](vDelta[i], 0)
-        valueDelta[ff.i] += vDelta[i]
+        if (!inputs.includes(ff.a)) valueDelta[ff.i] += vDelta[i]
       })
       valueDelta[f.i] -= f.v
     }
@@ -199,18 +244,31 @@ const sanitise = world => {
 }
 
 const loop = world => {
-  const {config, flows} = world
-  const getDelta = mode[config.mode]
+  let {config, flows, data, time} = world
+  let getDelta = mode[config.mode]
+
+  time = Math.floor(time / config.predictionDelay)
+  // TODO: we probably just need a single tick of weight mode, nevermind 1/3
+  // TODO: how does linear reverse flow?
+  // TODO: cosine is a bad general-purpose cost function. let's use cross-entropy or something, and then sigmoid it for finite domain?
+  // TODO: better color on input/output
+  if (time % 3 === 2) getDelta = mode.weight
+  time = Math.floor(time / 3)
+  const [valueInput, valueTarget] = data[time % data.length]
+  world.value = {valueInput, valueTarget}
+
   const {weightDelta, valueDelta} = getDelta(world)
 
-  // TODO: datasets/history/amplify/window/sanitise/modifiers/bias
+  // TODO: modifiers/bias/variation
 
   flows.forEach(f => {
     f.v += valueDelta[f.i]
+    f.v *= 1 - config.valueDecay
     f.v = activation[config.activation](f.v)
     f.w += weightDelta[f.i]
   })
   sanitise(world)
+  world.time += 1
 
   return world
 }

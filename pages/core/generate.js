@@ -86,7 +86,7 @@ const createRandom = seed => {
 
 const defaultConfig = {
   mode: 'value',
-  predictionDelay: NaN,
+  valueDecay: 0,
   activation: 'sigmoid',
   amplify: 'cosine'
 }
@@ -98,6 +98,7 @@ const intepret = commands => {
   const nodes = []
   const inputs = []
   const outputs = []
+  const data = []
   const vectors = {}
   for (const i in commands) {
     const [[command, ...params], ...subCommands] = commands[i]
@@ -119,6 +120,11 @@ const intepret = commands => {
             case 'HEIGHT': {
               const [height] = params
               config.height = parseFloat(height, 10)
+              break
+            }
+            case 'VALUE_DECAY': {
+              const [valueDecay] = params
+              config.valueDecay = parseFloat(valueDecay, 10)
               break
             }
             case 'LEARNING_RATE': {
@@ -234,6 +240,14 @@ const intepret = commands => {
         }
         break
       }
+      case 'DATA': {
+        let datums = subCommands
+        datums.forEach(([x, y]) => {
+          x = x.split(',').map(v => parseFloat(v, 10))
+          y = y.split(',').map(v => parseFloat(v, 10))
+          data.push([x, y])
+        })
+      }
       default: {
         break
       }
@@ -251,7 +265,7 @@ const intepret = commands => {
     nodes[f.b].flows.push(f.i)
   })
 
-  return {config, flows, nodes, inputs, outputs, history: []}
+  return {config, flows, nodes, inputs, outputs, data, time: 0}
 }
 
 const generate = program => {

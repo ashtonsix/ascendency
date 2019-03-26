@@ -4,11 +4,13 @@ import init from './core/generate'
 import loop, {sanitise} from './core/loop'
 import useClock from './useClock'
 
-import program from './programs/003-feedback.asc'
+import program from './programs/004-learning.asc'
+
+const initialWorld = sanitise(init(program))
 
 const Simulation = ({children}) => {
-  const [world, setWorld] = React.useState(sanitise(init(program)))
-  const clock = useClock(() => setWorld(loop(world)), 100, true)
+  const [world, setWorld] = React.useState(initialWorld)
+  const clock = useClock(() => setWorld(loop(world)), 500, true)
   global.world = world
   global.clock = clock
   return children(world)

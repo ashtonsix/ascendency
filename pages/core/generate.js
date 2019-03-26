@@ -87,7 +87,8 @@ const createRandom = seed => {
 const defaultConfig = {
   mode: 'value',
   valueDecay: 0,
-  activation: 'sigmoid',
+  slopeDecay: null, // default set later
+  activate: 'sigmoid',
   amplify: 'cosine'
 }
 
@@ -125,6 +126,14 @@ const intepret = commands => {
             case 'VALUE_DECAY': {
               const [valueDecay] = params
               config.valueDecay = parseFloat(valueDecay, 10)
+              if (typeof config.slopeDecay !== 'number') {
+                config.valueDecay = parseFloat(valueDecay, 10)
+              }
+              break
+            }
+            case 'SLOPE_DECAY': {
+              const [slopeDecay] = params
+              config.slopeDecay = parseFloat(slopeDecay, 10)
               break
             }
             case 'LEARNING_RATE': {
@@ -142,9 +151,9 @@ const intepret = commands => {
               config.predictionDelay = parseInt(predictionDelay, 10)
               break
             }
-            case 'ACTIVATION': {
-              const [activation] = params
-              config.activation = activation
+            case 'ACTIVATE': {
+              const [activate] = params
+              config.activate = activate
               break
             }
             case 'AMPLIFY': {
@@ -175,7 +184,7 @@ const intepret = commands => {
         let [a, b, w] = params
         const i = flows.length
         w = eval(w)
-        flows.push({i, a, b, w, v: 0})
+        flows.push({i, a, b, w, v: 0, s: 0})
         break
       }
       case 'VECTOR': {
@@ -254,6 +263,8 @@ const intepret = commands => {
     }
   }
 
+  if (typeof config.slopeDecay !== 'number') config.slopeDecay = 0
+
   const nodeMap = {}
   nodes.forEach(n => {
     nodeMap[n.label] = n
@@ -261,6 +272,12 @@ const intepret = commands => {
   flows.forEach(f => {
     f.a = nodeMap[f.a].i
     f.b = nodeMap[f.b].i
+    if (inputs.includes(f.a) && nodes[f.a].flows.length) {
+      throw new Error('input cannot have more than one flow')
+    }
+    if (outputs.includes(f.b) && nodes[f.b].flows.length) {
+      throw new Error('output cannot have more than one flow')
+    }
     nodes[f.a].flows.push(f.i)
     nodes[f.b].flows.push(f.i)
   })

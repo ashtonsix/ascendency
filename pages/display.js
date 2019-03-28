@@ -43,15 +43,23 @@
 })(global.CanvasRenderingContext2D)
 
 const log = v => {
+  return v
   const sgn = v > 0 ? 1 : -1
   v = Math.log(Math.abs(v) + 1)
   return v * sgn
 }
 
-const sigmoid = value => 2 / (1 + Math.exp(-value)) - 1
+const sigmoid = value => 2 / (1 + Math.exp(-value * 1e5)) - 1
 
 const arrowSize = 8
 const arrowColor = value => {
+  value = sigmoid(value)
+  const h = value > 0 ? '220' : '10'
+  const s = Math.abs(value * 100)
+  const l = 50 + Math.abs(value * 30)
+  return `hsl(${h}, ${s}%, ${l}%)`
+}
+const arrowStrokeColor = value => {
   value = sigmoid(value)
   const h = value > 0 ? '220' : '10'
   const s = Math.abs(value * 100)
@@ -75,7 +83,7 @@ const Canvas = ({world}) => {
 
     const max = log(flows.reduce((pv, f) => Math.max(pv, Math.abs(f.w)), 0))
 
-    flows.forEach(({a, b, w, v}) => {
+    flows.forEach(({a, b, w, v, s}) => {
       let {x: xa, y: ya} = nodes[a]
       let {x: xb, y: yb} = nodes[b]
       w = (log(w) / max) * arrowSize
@@ -86,8 +94,10 @@ const Canvas = ({world}) => {
 
       const shape = w > 0 ? [1, 0, -w * 2, w] : [-w * 2, -w, -1, 0]
       ctx.fillStyle = arrowColor(v)
+      ctx.strokeStyle = arrowStrokeColor(s)
       ctx.arrow(xa, ya, xb, yb, shape)
       ctx.fill()
+      // ctx.stroke()
     })
 
     ctx.fillStyle = 'blue'

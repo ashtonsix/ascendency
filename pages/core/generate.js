@@ -84,17 +84,9 @@ const createRandom = seed => {
   return random
 }
 
-const defaultConfig = {
-  mode: 'value',
-  valueDecay: 0,
-  slopeDecay: null, // default set later
-  activate: 'sigmoid',
-  amplify: 'cosine'
-}
-
 const intepret = commands => {
   let random = createRandom(Date.now()) // usage: eval(`random(0, -1)`)
-  const config = {...defaultConfig}
+  const config = {}
   const flows = []
   const nodes = []
   const inputs = []
@@ -103,62 +95,34 @@ const intepret = commands => {
   const vectors = {}
   for (const i in commands) {
     const [[command, ...params], ...subCommands] = commands[i]
+    const camelCase = str => {
+      str = str.toLowerCase()
+      str = str.replace(/_\w/, c => c[1].toUpperCase())
+      return str
+    }
     switch (command) {
       case 'CONFIG': {
         for (const i in subCommands) {
           const [command, ...params] = subCommands[i]
           switch (command) {
-            case 'MODE': {
-              const [mode] = params
-              config.mode = mode
-              break
-            }
-            case 'WIDTH': {
-              const [width] = params
-              config.width = parseFloat(width, 10)
-              break
-            }
-            case 'HEIGHT': {
-              const [height] = params
-              config.height = parseFloat(height, 10)
-              break
-            }
-            case 'VALUE_DECAY': {
-              const [valueDecay] = params
-              config.valueDecay = parseFloat(valueDecay, 10)
-              if (typeof config.slopeDecay !== 'number') {
-                config.valueDecay = parseFloat(valueDecay, 10)
-              }
-              break
-            }
+            case 'WIDTH':
+            case 'HEIGHT':
+            case 'PREDICTION_DELAY':
+            case 'LEARNING_RATE':
+            case 'CYCLE_ASPECT':
+            case 'CYCLE_LEAK':
+            case 'VALUE_DECAY':
             case 'SLOPE_DECAY': {
-              const [slopeDecay] = params
-              config.slopeDecay = parseFloat(slopeDecay, 10)
+              const key = camelCase(command)
+              const [value] = params
+              config[key] = parseFloat(value, 10)
               break
             }
-            case 'LEARNING_RATE': {
-              const [learningRate] = params
-              config.learningRate = parseFloat(learningRate, 10)
-              break
-            }
-            case 'LEARNING_LEAK': {
-              const [learningLeak] = params
-              config.learningLeak = parseFloat(learningLeak, 10)
-              break
-            }
-            case 'PREDICTION_DELAY': {
-              const [predictionDelay] = params
-              config.predictionDelay = parseInt(predictionDelay, 10)
-              break
-            }
-            case 'ACTIVATE': {
-              const [activate] = params
-              config.activate = activate
-              break
-            }
+            case 'ACTIVATE':
             case 'AMPLIFY': {
-              const [amplify] = params
-              config.amplify = amplify
+              const key = camelCase(command)
+              const [value] = params
+              config[key] = value
               break
             }
           }

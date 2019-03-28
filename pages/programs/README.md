@@ -7,7 +7,7 @@ CONFIG {
   WIDTH 5
   HEIGHT 5
 
-  LEARNING_RATE 0.5
+  TRANSFER_RATE 0.5
   LEARNING_LEAK 0.1
 
   PREDICTION_DELAY 5
@@ -16,7 +16,7 @@ CONFIG {
   ACTIVATION sigmoid
 }
 
-learningRate, is % of weight transferred to forward flows when value=1
+transferRate, is % of weight transferred to forward flows when value=1
 learningLeak, adds intentional ineffciency to learning. influences exploration vs exploitation
 
 predictionDelay, is # of ticks between sending an input & reading the output

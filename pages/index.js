@@ -4,7 +4,7 @@ import init from './core/generate'
 import loop, {sanitise} from './core/loop'
 import useClock from './useClock'
 
-import program from './programs/001-square.asc'
+import program from './programs/006-xor.asc'
 
 const initialWorld = sanitise(init(program))
 

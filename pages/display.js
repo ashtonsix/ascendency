@@ -43,7 +43,6 @@
 })(global.CanvasRenderingContext2D)
 
 const log = v => {
-  return v
   const sgn = v > 0 ? 1 : -1
   v = Math.log(Math.abs(v) + 1)
   return v * sgn
@@ -52,25 +51,19 @@ const log = v => {
 const sigmoid = value => 2 / (1 + Math.exp(-value * 1e5)) - 1
 
 const arrowSize = 8
-const arrowColor = value => {
+const arrowColor = (value, bias) => {
   value = sigmoid(value)
   const h = value > 0 ? '220' : '10'
   const s = Math.abs(value * 100)
   const l = 50 + Math.abs(value * 30)
-  return `hsl(${h}, ${s}%, ${l}%)`
-}
-const arrowStrokeColor = value => {
-  value = sigmoid(value)
-  const h = value > 0 ? '220' : '10'
-  const s = Math.abs(value * 100)
-  const l = 50 + Math.abs(value * 30)
-  return `hsl(${h}, ${s}%, ${l}%)`
+  const a = bias ? 40 : 100
+  return `hsla(${h}, ${s}%, ${l}%, ${a}%)`
 }
 const border = 15
 const scale = 100
 
 const Canvas = ({world}) => {
-  const {config, flows = [], nodes = [], inputs = [], outputs = []} = world
+  const {config, flows, nodes, inputs, outputs, plusBias, minusBias} = world
   const ref = React.useRef()
 
   const canvasWidth = config.width * scale + border * 2
@@ -83,7 +76,7 @@ const Canvas = ({world}) => {
 
     const max = log(flows.reduce((pv, f) => Math.max(pv, Math.abs(f.w)), 0))
 
-    flows.forEach(({a, b, w, v, s}) => {
+    flows.forEach(({i, a, b, w, v, s}) => {
       let {x: xa, y: ya} = nodes[a]
       let {x: xb, y: yb} = nodes[b]
       w = (log(w) / max) * arrowSize
@@ -93,11 +86,10 @@ const Canvas = ({world}) => {
       yb = yb * scale + border
 
       const shape = w > 0 ? [1, 0, -w * 2, w] : [-w * 2, -w, -1, 0]
-      ctx.fillStyle = arrowColor(v)
-      ctx.strokeStyle = arrowStrokeColor(s)
+      const bias = plusBias.includes(a) || minusBias.includes(a)
+      ctx.fillStyle = arrowColor(v, bias)
       ctx.arrow(xa, ya, xb, yb, shape)
       ctx.fill()
-      // ctx.stroke()
     })
 
     ctx.fillStyle = 'blue'
@@ -107,6 +99,15 @@ const Canvas = ({world}) => {
       y = y * scale + border
 
       ctx.diamond(x, y, arrowSize * 2, arrowSize * 2.2)
+      ctx.fill()
+    })
+    ;[...plusBias, ...minusBias].forEach(i => {
+      let {x, y} = nodes[i]
+      x = x * scale + border
+      y = y * scale + border
+
+      ctx.beginPath()
+      ctx.arc(x, y, arrowSize, 0, 2 * Math.PI)
       ctx.fill()
     })
 

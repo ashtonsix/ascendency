@@ -91,6 +91,8 @@ const intepret = commands => {
   const nodes = []
   const inputs = []
   const outputs = []
+  const plusBias = []
+  const minusBias = []
   const data = []
   const vectors = {}
   for (const i in commands) {
@@ -108,7 +110,8 @@ const intepret = commands => {
             case 'WIDTH':
             case 'HEIGHT':
             case 'PREDICTION_DELAY':
-            case 'LEARNING_RATE':
+            case 'AMPLITUDE':
+            case 'TRANSFER_RATE':
             case 'CYCLE_ASPECT':
             case 'CYCLE_LEAK':
             case 'VALUE_DECAY':
@@ -142,6 +145,8 @@ const intepret = commands => {
         nodes.push({label, i, x, y, flows: []})
         if (flag === 'INPUT') inputs.push(i)
         if (flag === 'OUTPUT') outputs.push(i)
+        if (flag === 'PLUS_BIAS') plusBias.push(i)
+        if (flag === 'MINUS_BIAS') minusBias.push(i)
         break
       }
       case 'FLOW': {
@@ -169,6 +174,8 @@ const intepret = commands => {
           nodes.push({label, i, x, y, flows: []})
           if (flag === 'INPUT') inputs.push(i)
           if (flag === 'OUTPUT') outputs.push(i)
+          if (flag === 'PLUS_BIAS') plusBias.push(i)
+          if (flag === 'MINUS_BIAS') minusBias.push(i)
           vectors[vector].push(label)
         }
       }
@@ -246,7 +253,17 @@ const intepret = commands => {
     nodes[f.b].flows.push(f.i)
   })
 
-  return {config, flows, nodes, inputs, outputs, data, time: 0}
+  return {
+    config,
+    flows,
+    nodes,
+    inputs,
+    outputs,
+    plusBias,
+    minusBias,
+    data,
+    time: 0
+  }
 }
 
 const generate = program => {

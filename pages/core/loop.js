@@ -19,12 +19,6 @@ const activate = {
   }
 }
 
-const dot = (a, b) => {
-  let sum = 0
-  for (const i in a) sum += a[i] * b[i]
-  return sum
-}
-
 const errorToAmplify = (error, domain) => {
   const [lo, hi] = domain
   error += 1 / (hi - lo)
@@ -33,11 +27,11 @@ const errorToAmplify = (error, domain) => {
 }
 
 const amplify = {
-  mse: (a, b) => {
+  mse: (a, b, amplitude) => {
     let total = 0
     a.forEach((_, i) => (total += Math.abs(a[i] - b[i]) ** 2))
     const error = total / a.length
-    return errorToAmplify(error, [1, 1.1])
+    return errorToAmplify(error, [1, 1 + amplitude])
   }
 }
 
@@ -99,11 +93,32 @@ const sanitise = world => {
   return world
 }
 
+const normalise = world => {
+  const {flows} = world
+
+  const total = flows.reduce((pv, f) => pv + f.w, 0)
+  const average = total / flows.length
+  flows.forEach(f => (f.w /= average))
+
+  return world
+}
+
 const loop = world => {
-  const {config, flows, nodes, inputs, outputs, data, time} = world
+  const {
+    config,
+    flows,
+    nodes,
+    inputs,
+    outputs,
+    plusBias,
+    minusBias,
+    data,
+    time
+  } = world
   const {
     predictionDelay,
-    learningRate,
+    amplitude,
+    transferRate,
     cycleAspect,
     cycleLeak,
     valueDecay,
@@ -117,9 +132,6 @@ const loop = world => {
   let slopeDelta = new Array(flows.length).fill(0)
   let weightDelta = new Array(flows.length).fill(0)
 
-  console.log('---')
-  console.log(time)
-
   // STEP 1. load data; 2/1 cycle; input / output
   {
     const t1 = Math.floor(time / predictionDelay)
@@ -131,10 +143,10 @@ const loop = world => {
     const relax = false // t1 % 3 === 2
 
     let IOSent = 0
-    inputs.forEach(i => {
+    ;[...inputs, ...plusBias, ...minusBias].forEach(i => {
       const n = nodes[i]
       const f = flows[n.flows[0]]
-      let d = f.w * learningRate
+      let d = f.w * transferRate
       if (!f.s) d *= cycleAspect
       IOSent += d
       weightDelta[f.i] -= d
@@ -147,13 +159,15 @@ const loop = world => {
       valueOutput[j] += f.v
       valueDelta[f.i] -= f.v
     })
-    if (!relax) IOSent *= amplify[config.amplify](valueOutput, valueTarget)
+    if (!relax) {
+      IOSent *= amplify[config.amplify](valueOutput, valueTarget, amplitude)
+    }
     value.valueOutput = valueOutput
 
     const slopeOutput = getPartialDerivatives(
       valueOutput,
       valueTarget,
-      amplify[config.amplify]
+      (vo, vt) => amplify[config.amplify](vo, vt, amplitude)
     )
     const vSlopeOutput = slopeOutput.map((s, j) => {
       const i = outputs[j]
@@ -179,14 +193,28 @@ const loop = world => {
         valueDelta[f.i] += valueInput[j]
         slopeDelta[f.i] -= f.s
       })
+      plusBias.forEach(i => {
+        const n = nodes[i]
+        n.flows.forEach(j => {
+          const f = flows[j]
+          valueDelta[f.i] += f.w
+          slopeDelta[f.i] -= f.s
+        })
+      })
+      minusBias.forEach(i => {
+        const n = nodes[i]
+        n.flows.forEach(j => {
+          const f = flows[j]
+          valueDelta[f.i] -= f.w
+          slopeDelta[f.i] -= f.s
+        })
+      })
     }
 
     if (relax) {
       flows.forEach(f => (f.s = 0))
       value.valueTarget = outputs.map(() => 0)
     }
-
-    console.log(valueOutput)
   }
 
   // STEP 2. value
@@ -234,7 +262,7 @@ const loop = world => {
       if (inputs.includes(f.a) || !f.s) return
 
       const backward = filterFlow(f, nodes[f.a].flows.map(i => flows[i]))
-      const d = f.w * learningRate * (1 - cycleAspect)
+      const d = f.w * transferRate * (1 - cycleAspect)
 
       let vBackward = linearRescale(backward.map(ff => ff.v))
       if (f.s < 0) vBackward = vBackward.map(v => -v + 1)
@@ -262,7 +290,7 @@ const loop = world => {
         if (reversed) w *= -1
         return w
       })
-      let d = f.w * learningRate * cycleAspect
+      let d = f.w * transferRate * cycleAspect
 
       let wDelta
       let sum = wBackward.reduce((pv, v) => pv + Math.max(v, 0), 0)
@@ -285,12 +313,6 @@ const loop = world => {
     })
   }
 
-  flows.forEach(f => {
-    console.log(
-      `${f.i}, ${nodes[f.b].label} => ${nodes[f.a].label}, ${weightDelta[f.i]}`
-    )
-  })
-
   // STEP 6. apply value/weight
   {
     flows.forEach(f => {
@@ -305,7 +327,7 @@ const loop = world => {
   // no slope in 1 & 3, no value input in 3
   // phases: PREDICT, LEARN, RESET
 
-  // normalise weights
+  normalise(world)
   sanitise(world)
   world.time += 1
 

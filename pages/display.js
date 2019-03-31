@@ -74,7 +74,7 @@ const Canvas = ({world}) => {
     ctx.fillStyle = 'white'
     ctx.fillRect(0, 0, canvasWidth, canvasHeight)
 
-    const max = log(flows.reduce((pv, f) => Math.max(pv, Math.abs(f.w)), 0))
+    const max = log(flows.reduce((pv, f) => Math.max(pv, f.w), 0))
 
     flows.forEach(({i, a, b, w, v, s}) => {
       let {x: xa, y: ya} = nodes[a]

@@ -4,13 +4,14 @@ import init from './core/generate'
 import loop, {sanitise} from './core/loop'
 import useClock from './useClock'
 
-import program from './programs/006-xor.asc'
+import program from './programs/005-boolean.asc'
 
 const initialWorld = sanitise(init(program))
 
 const Simulation = ({children}) => {
   const [world, setWorld] = React.useState(initialWorld)
   const clock = useClock(() => setWorld(loop(world)), 100, true)
+  if (world.time >= 3000) clock.stop()
   global.world = world
   global.clock = clock
   return children(world)

@@ -63,7 +63,7 @@ const filterFlow = (me, you) => {
 const weightedAverage = (me, you) => {
   if (you.length === 1) return [me]
   let sum = you.reduce((pv, v) => pv + v, 0)
-  if (!sum) return you.map(() => 0)
+  if (!sum) return you.map(() => me / you.length)
   return you.map(you => me * (you / sum))
 }
 
@@ -97,8 +97,24 @@ const normalise = world => {
   const {flows} = world
 
   const total = flows.reduce((pv, f) => pv + f.w, 0)
-  const average = total / flows.length
-  flows.forEach(f => (f.w /= average))
+  const mean = total / flows.length
+  flows.forEach(f => (f.w /= mean))
+
+  return world
+}
+
+const cancelBias = world => {
+  const {flows, nodes, plusBias, minusBias} = world
+
+  nodes.forEach(n => {
+    const p = n.flows.find(i => plusBias.includes(flows[i].a))
+    const m = n.flows.find(i => minusBias.includes(flows[i].a))
+    if (typeof p === 'number' && typeof m === 'number') {
+      const d = Math.min(flows[p].w, flows[m].w) - epsilon
+      flows[p].w -= d
+      flows[m].w -= d
+    }
+  })
 
   return world
 }
@@ -124,45 +140,57 @@ const loop = world => {
     valueDecay,
     slopeDecay
   } = config
-  let valueInput, valueTarget
+  let valueInput, valueTarget, valueOutput
   const value = {valueInput, valueTarget}
   world.value = value
 
   let valueDelta = new Array(flows.length).fill(0)
   let slopeDelta = new Array(flows.length).fill(0)
   let weightDelta = new Array(flows.length).fill(0)
+  let phase
+  let firstTickOfPhase
+  let firstTickOfEpoch
 
-  // STEP 1. load data; 2/1 cycle; input / output
+  // STEP 1. load data; set phase; input / output
   {
+    firstTickOfPhase = time % predictionDelay === 0
+    firstTickOfEpoch = time % (predictionDelay * 4 * data.length) === 0
+
     const t1 = Math.floor(time / predictionDelay)
-    const t3 = Math.floor(t1 / 3)
+    phase = ['PREDICT', 'SLOPE', 'LEARN', 'RESET'][t1 % 4]
+    const t4 = Math.floor(t1 / 4)
     const defaultValue = [inputs.map(() => 0), outputs.map(() => 0)]
-    ;[valueInput, valueTarget] = data[t3 % data.length] || defaultValue
+    ;[valueInput, valueTarget] =
+      phase === 'RESET' ? defaultValue : data[t4 % data.length] || defaultValue
     value.valueInput = valueInput
     value.valueTarget = valueTarget
-    const relax = false // t1 % 3 === 2
 
     let IOSent = 0
     ;[...inputs, ...plusBias, ...minusBias].forEach(i => {
       const n = nodes[i]
-      const f = flows[n.flows[0]]
-      let d = f.w * transferRate
-      if (!f.s) d *= cycleAspect
-      IOSent += d
-      weightDelta[f.i] -= d
+      n.flows.forEach((_, i) => {
+        const f = flows[n.flows[i]]
+        let d = f.w * transferRate
+        IOSent += d
+        weightDelta[f.i] -= d
+      })
     })
 
-    const valueOutput = new Array(outputs.length).fill(0)
+    valueOutput = new Array(outputs.length).fill(0)
     outputs.forEach((i, j) => {
       const n = nodes[i]
       const f = flows[n.flows[0]]
       valueOutput[j] += f.v
       valueDelta[f.i] -= f.v
     })
-    if (!relax) {
-      IOSent *= amplify[config.amplify](valueOutput, valueTarget, amplitude)
-    }
+    const score = amplify[config.amplify](valueOutput, valueTarget, amplitude)
+    IOSent *= score
     value.valueOutput = valueOutput
+
+    if (firstTickOfEpoch) console.log('---')
+    if (firstTickOfPhase && phase === 'LEARN') {
+      console.log(valueInput, valueOutput[0], valueTarget[0])
+    }
 
     const slopeOutput = getPartialDerivatives(
       valueOutput,
@@ -177,7 +205,7 @@ const loop = world => {
       return Math.abs(s) * (signAgrees ? 1 : -1)
     })
     const vSlopeMin = Math.min(...vSlopeOutput)
-    const wDelta = weightedAverage(IOSent, vSlopeOutput.map(v => v + vSlopeMin))
+    const wDelta = weightedAverage(IOSent, vSlopeOutput.map(v => v - vSlopeMin))
 
     outputs.forEach((i, j) => {
       const n = nodes[i]
@@ -186,7 +214,7 @@ const loop = world => {
       weightDelta[f.i] += wDelta[j]
     })
 
-    if (!relax) {
+    if (phase !== 'RESET') {
       inputs.forEach((i, j) => {
         const n = nodes[i]
         const f = flows[n.flows[0]]
@@ -210,10 +238,8 @@ const loop = world => {
         })
       })
     }
-
-    if (relax) {
+    if (phase === 'RESET') {
       flows.forEach(f => (f.s = 0))
-      value.valueTarget = outputs.map(() => 0)
     }
   }
 
@@ -244,22 +270,18 @@ const loop = world => {
       slopeDelta[f.i] -= f.s
     })
     // apply immediately. needed for weight flow calculation
-    flows.forEach(f => {
-      if (f.v) {
+    if (phase === 'SLOPE') {
+      flows.forEach(f => {
         f.s += slopeDelta[f.i]
         f.s *= 1 - slopeDecay
-      } else {
-        // REVISIT, possible in edge case. what we really want,
-        // is not to activate until value reaches output
-        f.s = 0
-      }
-    })
+      })
+    }
   }
 
   // STEP 4. slope weight
   {
     flows.forEach(f => {
-      if (inputs.includes(f.a) || !f.s) return
+      if (inputs.includes(f.a)) return
 
       const backward = filterFlow(f, nodes[f.a].flows.map(i => flows[i]))
       const d = f.w * transferRate * (1 - cycleAspect)
@@ -316,17 +338,22 @@ const loop = world => {
   // STEP 6. apply value/weight
   {
     flows.forEach(f => {
-      f.w += weightDelta[f.i]
-      f.v += valueDelta[f.i]
-      f.v *= 1 - valueDecay
-      f.v = activate[config.activate](f.v)
+      const la = nodes[f.a].label
+      const lb = nodes[f.b].label
+      if (phase === 'LEARN') {
+        f.w += weightDelta[f.i]
+      }
+      if (phase === 'PREDICT' || phase === 'RESET') {
+        f.v += valueDelta[f.i]
+        f.v *= 1 - valueDecay
+        f.v = activate[config.activate](f.v)
+      }
     })
   }
 
-  // TODO: split-diamonds/bias/batch
-  // no slope in 1 & 3, no value input in 3
-  // phases: PREDICT, LEARN, RESET
+  // TODO: split-diamonds/batch
 
+  cancelBias(world)
   normalise(world)
   sanitise(world)
   world.time += 1

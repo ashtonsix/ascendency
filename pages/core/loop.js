@@ -166,11 +166,14 @@ const loop = world => {
     value.valueTarget = valueTarget
 
     let IOSent = 0
+    // prettier-ignore
+    let circuitComplete = outputs.reduce((pv, i) => pv || !!flows[nodes[i].flows[0]].v, false)
     ;[...inputs, ...plusBias, ...minusBias].forEach(i => {
       const n = nodes[i]
       n.flows.forEach((_, i) => {
         const f = flows[n.flows[i]]
         let d = f.w * transferRate
+        if (!circuitComplete) d *= cycleAspect
         IOSent += d
         weightDelta[f.i] -= d
       })

@@ -1,107 +1,75 @@
-# cycle propogation
+# ascendency, neural networks & cycle propogation
 
-cycleprop is a brand new algorithm for training deep neural networks. i've
-created a working prototype, think the idea has potential, and want to work on
-it for 2 years
+i had a crazy idea and wanted to see it work. in "Ecology, The Ascendent
+Perspective" Robert Ulanowicz explains how ecosystems change over time; and i
+think, how all networks self-optimise. the ascendent perspective has always been
+second nature to me: the foundation for my spiritual, intellectual, and creative
+thinking. i took the principles from an ecology textbook and used them to train
+a neural network
 
-![xor example]()
+when chemicals ignite they produce heat, which ignites more of the substrate,
+producing more heat - an autocatalytic cycle. dust in a protoplanetary disk
+travels in cycles too, some cycles more effcient than others (better at
+conserving angular momentum). good cycles are autocatalytic relative to others;
+weak cycles are pruned. ascendency means "rising together". as ascendency in a
+system increases its cycles become: homogenous, specialised, effcient, complex,
+productive, brittle, insular, and slow-changing
 
-cycleprop can solve non-linear tasks like XOR. this example uses fully-connected
-layers, 0-centered sigmoid activation & modified cosine similarity. the two
-input/output pairs at bottom perform a role similar to bias, and their values
-are ignored. this network could be migrated to PyTorch/Tensorflow without fuss
+ascendency explains the success of shipping containers, the poor resilience of
+modern crops, the economic shift toward niche startups, rising suicide rates,
+and everything else too. i started building a network simulator for studying
+socioeconomic issues, and then i asked myself "can this tool learn?"
 
-![amorphous example]()
+shifting some % of each flow's weight backward increases a network's ascendency.
+after a few iterations square networks become perfect cycles, and larger grids
+develop cycles with fractal complexity
 
-cycleprop can optimise crazy-looking layers. it can "flip" connections: during
-training cycleprop may redirect recurrent flows, create memory cells, and
-syncronise inputs across time
+![square]() ![large grid]()
 
-![explainer diagram]()
+values travel through the network boosting weight transfer as they move, and
+transfers are amplified when the output is correct. cycles which yield correct
+answers are autocatalytic and become stronger. this network learns to minimise
+`mse(output, [100, 100])`
 
-when activated, CD & CE transfer a fraction of their weight to AC & BC. there is
-a hidden connection between the input & output through which weight flows in a
-cycle. when the model provides good answers the weight transfer is amplified
+![feedback]()
 
-![feedback example]()
+an exchange (one input, many outputs) splits a value by weighted average.
+therefore weights are effectively constrained to values between 0 & 1, and the
+sum of each exchange's weight is always 1. i introduced negative values, bias,
+activation, normalisation, and slope. this network learns to flip a signal
 
-<!-- the weight (arrow size) travels backward, and the value (color)
-travels along the weight network. when the value reaches the output it completes
-the cycle, enabling weight to flow from the input to the output via a "hidden"
-connection in the cycle
+![flip]()
 
-when the model provides good answers (maps values correctly), the weight
-transfer is amplified and good cycles become stronger relative to bad cycles -->
+unfortunately... flipping signals is almost the limit of what my networks can
+learn. they can approximate AND/OR but fail to learn NAND/XOR. the constraints
+are too severe and i'm sure my approach is fundamentally flawed (but don't know
+how)
 
-the values flow forward; the weights flow backward; the value reaches the
-output; the cycle is completed; and weights can flow from input to output; the
-weight transfer is amplified, which strengthens good cycles relative to bad
-cycles. this algorithm maximises "weight flowing through cycle / net change in
-weight over time". amplifying good answers ensures task-learning is the best way
-to succeed
+![fully-connected network](./docs/boolean.png)
 
-![square example]() ![fully-connected reverse example]()
+| _**AND**_ | in1 | in2 | target |   out | _**OR**_ | in1 | in2 | target |   out |
+| --------- | --: | --: | -----: | ----: | -------- | --: | --: | -----: | ----: |
+|           |   1 |   1 |      1 |  1.20 |          |   1 |   1 |      1 |  1.49 |
+|           |   1 |  -1 |     -1 | -1.10 |          |   1 |  -1 |      1 |  1.01 |
+|           |  -1 |   1 |     -1 | -1.02 |          |  -1 |   1 |      1 |  0.95 |
+|           |  -1 |  -1 |     -1 | -1.49 |          |  -1 |  -1 |     -1 | -1.23 |
 
-cycleprop does not use gradients. networks are garunteed to become more stable
-over time (less exergy). you can use very high learning rates without
-introducing instability. given uniform value in the "square" example, any
-initial weight configuration will become a perfect cycle in logarithmic time. if
-you remove the input/ouput from a fully-connected layer it forms internal cycles
+i'm unsure whether this paradigm for training neural networks could match back
+propogation. but if someone can make it work there will be some exciting
+possibilities for sure! by flipping flows these networks could restructure
+themselves: create memory capacitors, fine-tune recurrence, and syncronise
+values through time. i can't help but wonder whether task-independent
+autocatalysis could enable AI systems to consider original goals, possess an
+innate curiosity, and exhibit volition
 
-**pros**
+## running the simulator
 
-volition. cycleprop continues to improve itself without rewards or additional
-examples. its reward mechanism is largely internal which may help the network
-consider wholly original objectives, and form the basis for emotion-inspired
-mechanisms like happiness / fear
+there is no user interface. you must edit the source code to change the program
+(look at [./pages/index.js](./pages/index.js))
 
-possibility. meta, l2 dropout, encoding, random forest in the middle
-
-nature.
-
-**cons**
-
-performance. the network cannot be simulated "layer-by-layer", so a network 1000
-layers deep would take 1000x more iterations to train than it would with
-backprop (assuming same improvement per example). feed-forward networks can get
-around this limitation with a concurrent scheduling technique, and so can
-recurrent networks to a lesser extent. this limitation doesn't apply to BPTT
-
-constraints. models must respect the laws of thermodynamics, which may challenge
-researchers. i personally struggled to integrate some math, eg: negative values,
-values greater than 1, bias, non-linearity, etc
-
-**completed so far**
-
-- working JavaScript prototype. 1 iteration per second w/ 10k connections
-- fully-connected & amorphous layer types
-- solved all 2-bit boolean operators and iris dataset
-- DSL for designing models/experiments quickly
-- realtime visual output and reproducible RNG
-
-**next to build**
-
-- documentation. series of programs with explainer text. learners should be able
-  to open / modfiy / create programs in-browser
-- GPU support. considering CuPy as target for first accelerated implementation.
-  API similar to PyTorch / Keras
-- convolutions, weight sharing, skip connections, pooling. all that stuff
-- iterate on technique / benchmarks. stuff like DAWNBench & cosine annealing
-- novelty. identify unique possibilities for cycleprop and try some out
-
-**ascendency**
-
-cycleprop makes use of ascendency, a phenomena described by Robert Ulanowicz in
-"Ecology, The Ascendent Perspective". ascendency explains how order emerges
-within interconnected systems. i think this includes explaining the nature of
-God, of the soul, society, and star formation
-
-ascendency means "rising together". the three conditions for ascendency include:
-
-1.  variation: exchanges within a system have different characteristics
-2.  autocatalysis: resources within a system are exchanged in cycles
-3.  scarcity: resources available for exchange are limited
-
-**source code**
-
-[github.com/ashtonsix/ascendency](https://github.com/ashtonsix/ascendency)
+```sh
+git clone git@github.com:ashtonsix/ascendency.git
+cd ascendency
+npm install
+npm run dev
+```

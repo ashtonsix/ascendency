@@ -22,26 +22,30 @@ socioeconomic issues, and then i asked myself "can this tool learn?"
 
 shifting some % of each flow's weight backward increases a network's ascendency.
 after a few iterations square networks become perfect cycles, and larger grids
-develop cycles with fractal complexity
+develop cycles with considerable complexity
 
-![square]() ![large grid]()
+![square](./docs/square.gif)
+
+![grid](./docs/grid.png)
 
 values travel through the network boosting weight transfer as they move, and
 transfers are amplified when the output is correct. cycles which yield correct
 answers are autocatalytic and become stronger. this network learns to minimise
 `mse(output, [100, 100])`
 
-![feedback]()
+![feedback](./docs/feedback.gif)
 
 an exchange (one input, many outputs) splits a value by weighted average.
 therefore weights are effectively constrained to values between 0 & 1, and the
-sum of each exchange's weight is always 1. i introduced negative values, bias,
-activation, normalisation, and slope. this network learns to flip a signal
+sum of each exchange's weight is always 1
 
-![flip]()
+it took me two weeks to integrate negative values, bias, activation,
+normalisation, and slope. this network learns to flip a signal
+
+![flip](./docs/flip.gif)
 
 unfortunately... flipping signals is almost the limit of what my networks can
-learn. they can approximate AND/OR but fail to learn NAND/XOR. the constraints
+achieve. they can approximate AND/OR but fail to learn NAND/XOR. the constraints
 are too severe and i'm sure my approach is fundamentally flawed (but don't know
 how)
 
@@ -66,6 +70,9 @@ innate curiosity, and exhibit volition
 
 there is no user interface. you must edit the source code to change the program
 (look at [./pages/index.js](./pages/index.js))
+
+look at [./programs/README.md](./programs/README.md) for a guide to the
+simulator's programming language
 
 ```sh
 git clone git@github.com:ashtonsix/ascendency.git

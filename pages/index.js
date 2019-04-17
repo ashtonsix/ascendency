@@ -1,15 +1,11 @@
 import React from 'react'
-import init from '../core/generate'
-import loop, {sanitise} from '../core/loop'
 import display from '../core/paint'
 import Canvas from '../react/Canvas'
 import useClock from '../react/useClock'
 
-import program from '../programs/006-boolean.asc'
+import program from '../programs/003-feedback'
 
-const initialWorld = sanitise(init(program))
-
-const stopAt = 300
+const stopAt = 1500
 const tickMs = 100
 const displayOptions = {
   scale: 100,
@@ -18,9 +14,11 @@ const displayOptions = {
   colorIntensity: 1e5
 }
 
+const initWorld = program()
+
 const Simulation = ({children}) => {
-  const [world, setWorld] = React.useState(initialWorld)
-  const clock = useClock(() => setWorld(loop(world)), tickMs, true)
+  const [world, setWorld] = React.useState(initWorld)
+  const clock = useClock(() => setWorld(program(world)), tickMs, true)
   if (world.time >= stopAt) clock.stop()
   global.world = world
   global.clock = clock

@@ -248,6 +248,7 @@ const loop = world => {
 
   // STEP 2. value
   {
+    const valueDelta = new Array(flows.length).fill(0)
     flows.forEach(f => {
       if (outputs.includes(f.b)) return
 
@@ -258,6 +259,11 @@ const loop = world => {
         if (!inputs.includes(ff.a)) valueDelta[ff.i] += vDelta[i]
       })
       valueDelta[f.i] -= f.v
+    })
+    flows.forEach(f => {
+      f.v += valueDelta[f.i]
+      f.v *= 1 - valueDecay
+      f.v = activate[config.activate](f.v)
     })
   }
 
